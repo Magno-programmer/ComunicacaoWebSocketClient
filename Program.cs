@@ -14,47 +14,35 @@ try
     using (ClientWebSocket webSocket = new ClientWebSocket())
     {
         byte[] buffer = new byte[1024];
+        bool keepingloop = true;
+        
         //Testando a conexão
-        Task connection = webSocket.ConnectAsync(new Uri("ws://localhost:5139/"), CancellationToken.None);
-        await connection;
+        await webSocket.ConnectAsync(new Uri("ws://localhost:5139/"), CancellationToken.None);
 
         Console.WriteLine($"Connection successful");
 
-        //Get name
-        Console.Write("Digite seu nome: ");
-        string name = Console.ReadLine()!;
-        byte[] dataName = Encoding.UTF8.GetBytes(name);
+        Task nome = SendName(webSocket);
 
-        //Send user name
-        await webSocket.SendAsync(dataName, WebSocketMessageType.Text, true, CancellationToken.None);
-
-        //Receive Id of client
-        var resultid = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-        string receivedId = Encoding.UTF8.GetString(buffer, 0, resultid.Count);
-
-        Console.WriteLine($"You are connected with Id: {receivedId}");
-
-        Task Listen = ListenToServerAsync(webSocket);
-
-
-        while (webSocket.State == WebSocketState.Open)
+        do
         {
+            Task escolha = EscolhaDoUsuario(webSocket);
 
-            string messageTest = Console.ReadLine()!;
+            Task listen = ListenToServerAsync(webSocket);
 
-            //Fecha a conexão se o tipo de mensagem for igual a mensagem de fechamento
-            if (messageTest == "exit")
+            while (webSocket.State == WebSocketState.Open)
             {
-                Console.WriteLine("Connection closed");
-                break;
+                string messageTest = Console.ReadLine()!;
+
+                //Fecha a conexão se o tipo de mensagem for igual a mensagem de fechamento
+                if (messageTest == "back")
+                {
+                    Console.Clear();
+                    break;
+                }
+                Task dialogo = UserDialog(webSocket, messageTest);
             }
 
-            byte[] messageBytes = Encoding.UTF8.GetBytes(messageTest);
-            await webSocket.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, CancellationToken.None);
-
-        }
-
-        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+        } while (keepingloop && webSocket.State == WebSocketState.Open);
 
     }
 
@@ -62,4 +50,46 @@ try
 catch (Exception ex) 
 {
     Console.WriteLine($"Ocorreu um erro na classe Program: {ex.Message}");
+}
+
+async Task EscolhaDoUsuario(ClientWebSocket webSocket)
+{
+
+    //Get name
+    Console.WriteLine("Menu de Opções: " +
+        "\n1 - Conversar com pessoa" +
+        "\n2 - Conversar com chat" +
+        "\nEscolha uma das opções: ");
+    string opcao = Console.ReadLine()!;
+    byte[] opcaoEscolhida = Encoding.UTF8.GetBytes(opcao);
+
+    //Send option of talk
+    await webSocket.SendAsync(opcaoEscolhida, WebSocketMessageType.Text, true, CancellationToken.None);
+}
+
+async Task UserDialog(ClientWebSocket webSocket, string messageTest)
+{
+    if (messageTest == "exit")
+    {
+        Console.WriteLine("Connection closed");
+
+        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "CloseSent", CancellationToken.None);
+    }
+    else
+    {
+        byte[] messageBytes = Encoding.UTF8.GetBytes(messageTest);
+        await webSocket.SendAsync(messageBytes, WebSocketMessageType.Text, true, CancellationToken.None);
+    }
+
+}
+
+async Task SendName(ClientWebSocket webSocket)
+{
+    //Get name
+    Console.Write("Digite seu nome: ");
+    string name = Console.ReadLine()!;
+    byte[] dataName = Encoding.UTF8.GetBytes(name);
+
+    //Send user name
+    await webSocket.SendAsync(dataName, WebSocketMessageType.Text, true, CancellationToken.None);
 }
